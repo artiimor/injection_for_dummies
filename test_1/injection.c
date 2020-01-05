@@ -15,10 +15,11 @@ int main(int argc, char *argv[])
        pid_t traced_process;
        struct user_regs_struct oldregs, regs;
        long ins;
-       int len = 41;
-       char insertcode[] =
-           "\xeb\x15\x5e\xb8\x04\x00\x00\x00\xbb\x02\x00\x00\x00\x89\xf1\xba\x0c\x00\x00\x00\xcd\x80\xcc\xe8\xe6\xff\xff\xff\x48\x65\x6c\x6c\x6f\x20\x57\x6f\x72\x6c\x64\x0a\x00";
+
+       char insertcode[] ="\xB8\x10\x00\x00\x00\xc3";
+       int len = sizeof(insertcode);
        char backup[len];
+       char pruebesita[len];
        long addr;
        if (argc != 2)
        {
@@ -27,8 +28,8 @@ int main(int argc, char *argv[])
               exit(1);
        }
        traced_process = atoi(argv[1]);
-       printf("PID: %d\n",traced_process);
-       
+       printf("PID: %d\n", traced_process);
+
        /*ATTATCH PROCESS*/
        if (ptrace(PTRACE_ATTACH, traced_process,
                   NULL, NULL) == -1)
@@ -46,19 +47,38 @@ int main(int argc, char *argv[])
               return -1;
        }
 
-       addr = freespaceaddr(traced_process);
-       
+       /*addr = freespaceaddr(traced_process);*/
+
+       addr = regs.rip;
+
        /*Little backup*/
        getdata(traced_process, addr, backup, len);
+
+       
+       getdata(traced_process, addr, pruebesita, len);
+       printf("DATA ANTES DE INSERTAR:\n");
+       printf("%x\n", pruebesita);
+       
 
        /*Inject evil stuff*/
        putdata(traced_process, addr, insertcode, len);
 
+       
+       getdata(traced_process, addr, pruebesita, len);
+       printf("DATA DESPUEs DE INSERTAR:\n");
+       printf("%x\n", pruebesita);
+       
+
        /*another little backup*/
        memcpy(&oldregs, &regs, sizeof(regs));
+       printf("RIP in oldregs: %llx\n", oldregs.rip);
+
+       printf("RIP before: %llx\n", regs.rip);
 
        /*instruction pointer where we injected the code*/
        regs.rip = addr;
+
+       printf("RIP after: %llx\n", regs.rip);
 
        /*new regs with instruction pointer in addr*/
        ptrace(PTRACE_SETREGS, traced_process,
@@ -66,11 +86,25 @@ int main(int argc, char *argv[])
        ptrace(PTRACE_CONT, traced_process,
               NULL, NULL);
        wait(NULL);
+
        printf("The process stopped, Putting back "
               "the original instructions\n");
 
+       
+       getdata(traced_process, addr, pruebesita, len);
+       printf("DATA ANTES DE RESTAURAR:\n");
+       printf("%s\n", pruebesita);
+       
+
        /*Restore original information*/
        putdata(traced_process, addr, backup, len);
+
+       
+       getdata(traced_process, addr, pruebesita, len);
+       printf("DATA DESPUES DE RESTAURAR:\n");
+       printf("%s\n", pruebesita);
+       
+
        ptrace(PTRACE_SETREGS, traced_process,
               NULL, &oldregs);
        printf("Letting it continue with "

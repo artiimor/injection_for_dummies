@@ -54,20 +54,23 @@ void putdata(pid_t child, long addr,
     i = 0;
     j = len / long_size;
     laddr = str;
+    
     while (i < j)
     {
+        printf("ME CAGO EN LA OSTIA PUTA1\n");
         memcpy(data.chars, laddr, long_size);
         ptrace(PTRACE_POKEDATA, child,
-               addr + i * 4, data.val);
+               addr + i * 4, str[i]);
         ++i;
         laddr += long_size;
     }
     j = len % long_size;
     if (j != 0)
     {
+        printf("ME CAGO EN LA OSTIA PUTA2\n");
         memcpy(data.chars, laddr, j);
         ptrace(PTRACE_POKEDATA, child,
-               addr + i * 4, data.val);
+               addr + i * 4, str[i]);
     }
 }
 

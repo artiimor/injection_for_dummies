@@ -3,11 +3,9 @@
 
 int main()
 {
-    int i;
-    for (i = 0; i < 100; ++i)
-    {
-        printf("My counter: %d\n", i);
+    while(1){
+        printf(".\n");
         sleep(2);
     }
-    return 0;
+        return 0;
 }
