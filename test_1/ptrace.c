@@ -5,13 +5,13 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/reg.h>
 #include "sys/user.h"
 
 #include "ptrace.h"
 
 const int long_size = sizeof(long);
-
 
 void getdata(pid_t child, long addr,
              char *str, int len)
@@ -54,7 +54,7 @@ void putdata(pid_t child, long addr,
     i = 0;
     j = len / long_size;
     laddr = str;
-    
+
     while (i < j)
     {
         printf("ME CAGO EN LA OSTIA PUTA1\n");
@@ -83,18 +83,59 @@ long freespaceaddr(pid_t pid)
     char str[20];
     sprintf(filename, "/proc/%d/maps", pid);
     fp = fopen(filename, "r");
-    if (fp == NULL){
+    if (fp == NULL)
+    {
         printf("ERROR in freespaceaddr\n");
         exit(1);
     }
-        
+
     while (fgets(line, 85, fp) != NULL)
     {
         sscanf(line, "%lx-%*lx %*s %*s %s", &addr,
                str, str, str, str);
-        if(strcmp(str, "00:00") == 0)
+        if (strcmp(str, "00:00") == 0)
             break;
     }
     fclose(fp);
     return addr;
+}
+
+static long write_word(pid_t pid, void *addr, uint32_t word)
+{
+    return ptrace(PTRACE_POKETEXT, pid, addr, (void *)(uint64_t)word);
+}
+
+static uint32_t read_word(pid_t pid, void *addr)
+{
+    uint32_t ret = ptrace(PTRACE_PEEKTEXT, pid, addr, NULL);
+    if (ret == 0xffffffff && errno)
+    {
+        perror("peekdata");
+    }
+    return ret;
+}
+
+int ptrace_writemem(pid_t pid, void *addr, void *src, size_t n)
+{
+    size_t i;
+    uint32_t word;
+    int wordsize = sizeof(word);
+    uint64_t curaddr = (uint64_t)addr;
+    uint8_t *srcptr = src;
+
+    for (i = 0; i + wordsize <= n; i += wordsize, curaddr += wordsize, srcptr += wordsize)
+    {
+        if (write_word(pid, (void *)curaddr, *((uint32_t *)srcptr)) == -1)
+            return -1;
+    }
+
+    if (i < n)
+    {
+        word = read_word(pid, (void *)curaddr);
+        memcpy(&word, srcptr, n - i);
+        if (write_word(pid, (void *)curaddr, *((uint32_t *)srcptr)) == -1)
+            return -1;
+    }
+
+    return (int)n;
 }

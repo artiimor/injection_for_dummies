@@ -16,7 +16,8 @@ int main(int argc, char *argv[])
        struct user_regs_struct oldregs, regs;
        long ins;
 
-       char insertcode[] ="\xB8\x10\x00\x00\x00\xc3";
+       char insertcode[] = "\xB8\x10\x00\x00\x00\xc3";
+       char aux[] = "asd";
        int len = sizeof(insertcode);
        char backup[len];
        char pruebesita[len];
@@ -54,20 +55,20 @@ int main(int argc, char *argv[])
        /*Little backup*/
        getdata(traced_process, addr, backup, len);
 
-       
        getdata(traced_process, addr, pruebesita, len);
        printf("DATA ANTES DE INSERTAR:\n");
-       printf("%x\n", pruebesita);
-       
+       printf("%x\n", ptrace(PTRACE_PEEKDATA, traced_process,
+                          addr, NULL));
 
        /*Inject evil stuff*/
-       putdata(traced_process, addr, insertcode, len);
+       /*putdata(traced_process, addr, insertcode, len);*/
 
-       
+       ptrace_writemem(traced_process, addr, insertcode, len);
+
        getdata(traced_process, addr, pruebesita, len);
        printf("DATA DESPUEs DE INSERTAR:\n");
-       printf("%x\n", pruebesita);
-       
+       printf("%x\n", ptrace(PTRACE_PEEKDATA, traced_process,
+                          addr, NULL));
 
        /*another little backup*/
        memcpy(&oldregs, &regs, sizeof(regs));
@@ -81,8 +82,13 @@ int main(int argc, char *argv[])
        printf("RIP after: %llx\n", regs.rip);
 
        /*new regs with instruction pointer in addr*/
-       ptrace(PTRACE_SETREGS, traced_process,
-              NULL, &regs);
+       /*ptrace(PTRACE_SETREGS, traced_process,
+              NULL, &regs);*/
+
+       /*printf("ESPERAMOS 5 SEGuNDINES\n");
+       sleep(5);
+       printf("CONTINuAMOS LA WEA\n");*/
+
        ptrace(PTRACE_CONT, traced_process,
               NULL, NULL);
        wait(NULL);
@@ -90,23 +96,22 @@ int main(int argc, char *argv[])
        printf("The process stopped, Putting back "
               "the original instructions\n");
 
-       
+       /*
        getdata(traced_process, addr, pruebesita, len);
        printf("DATA ANTES DE RESTAURAR:\n");
-       printf("%s\n", pruebesita);
-       
+       printf("%x\n", pruebesita);
+       */
 
        /*Restore original information*/
-       putdata(traced_process, addr, backup, len);
-
-       
+       /*putdata(traced_process, addr, backup, len);*/
+       /*
        getdata(traced_process, addr, pruebesita, len);
        printf("DATA DESPUES DE RESTAURAR:\n");
-       printf("%s\n", pruebesita);
-       
+       printf("%x\n", pruebesita);
+       */
 
-       ptrace(PTRACE_SETREGS, traced_process,
-              NULL, &oldregs);
+       /*ptrace(PTRACE_SETREGS, traced_process,
+              NULL, &oldregs);*/
        printf("Letting it continue with "
               "original flow\n");
 
