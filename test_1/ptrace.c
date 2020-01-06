@@ -139,3 +139,25 @@ int ptrace_writemem(pid_t pid, void *addr, void *src, size_t n)
 
     return (int)n;
 }
+
+int ptrace_readmem(pid_t pid, void *addr, void *buf, size_t n)
+{
+	size_t i;
+	uint32_t word;
+	int wordsize = sizeof(word);
+	uint64_t curaddr = (uint64_t)addr;
+	uint8_t *bufptr = buf;
+
+	for (i = 0; i + wordsize <= n; i += wordsize, curaddr += wordsize) {
+		word = read_word(pid, (void *)curaddr);
+		memcpy(bufptr + i, &word, wordsize);
+	}
+
+	if (i < n) {
+		word = read_word(pid, (void *)curaddr);
+		memcpy(bufptr + i, &word, n - i);
+	}
+
+	return (int)n;
+}
+

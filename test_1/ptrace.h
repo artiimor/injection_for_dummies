@@ -17,4 +17,6 @@ long freespaceaddr(pid_t pid);
 
 int ptrace_writemem(pid_t pid, void *addr, void *src, size_t n);
 
+int ptrace_readmem(pid_t pid, void *addr, void *buf, size_t n);
+
 #endif

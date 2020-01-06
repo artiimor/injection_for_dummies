@@ -22,6 +22,8 @@ int main(int argc, char *argv[])
        char backup[len];
        char pruebesita[len];
        long addr;
+
+
        if (argc != 2)
        {
               printf("Usage: %s <pid to be traced>\n",
@@ -31,7 +33,9 @@ int main(int argc, char *argv[])
        traced_process = atoi(argv[1]);
        printf("PID: %d\n", traced_process);
 
-       /*ATTATCH PROCESS*/
+       /*******************************************/
+       /**************ATTATCH PROCESS**************/
+       /*******************************************/
        if (ptrace(PTRACE_ATTACH, traced_process,
                   NULL, NULL) == -1)
        {
@@ -40,7 +44,9 @@ int main(int argc, char *argv[])
        }
        wait(NULL);
 
-       /*KIDNAP REGISTERS*/
+       /*******************************************/
+       /**************KIDNAP REGISTERS*************/
+       /*******************************************/
        if (ptrace(PTRACE_GETREGS, traced_process,
                   NULL, &regs) == -1)
        {
@@ -48,74 +54,69 @@ int main(int argc, char *argv[])
               return -1;
        }
 
-       /*addr = freespaceaddr(traced_process);*/
+       addr = freespaceaddr(traced_process);
 
-       addr = regs.rip;
-
-       /*Little backup*/
+       /*******************************************/
+       /***************Little backup***************/
+       /*******************************************/
        getdata(traced_process, addr, backup, len);
-
-       getdata(traced_process, addr, pruebesita, len);
-       printf("DATA ANTES DE INSERTAR:\n");
+       
+       printf("DATA BEFORE INSERT (ONLY FIRST WORD):\n");
        printf("%x\n", ptrace(PTRACE_PEEKDATA, traced_process,
                           addr, NULL));
 
-       /*Inject evil stuff*/
-       /*putdata(traced_process, addr, insertcode, len);*/
 
+       /*******************************************/
+       /*************Inject evil stuff*************/
+       /*******************************************/
        ptrace_writemem(traced_process, addr, insertcode, len);
 
-       getdata(traced_process, addr, pruebesita, len);
-       printf("DATA DESPUEs DE INSERTAR:\n");
+       printf("DATA AFTER INSERTION (ONLY FIRST WORD):\n");
        printf("%x\n", ptrace(PTRACE_PEEKDATA, traced_process,
                           addr, NULL));
 
-       /*another little backup*/
-       memcpy(&oldregs, &regs, sizeof(regs));
-       printf("RIP in oldregs: %llx\n", oldregs.rip);
 
-       printf("RIP before: %llx\n", regs.rip);
+       /*******************************************/
+       /***********another little backup***********/
+       /*******************************************/
+       memcpy(&oldregs, &regs, sizeof(regs));
+
+       /*look the instruction pointer*/
+       printf("RIP in oldregs: %llx\n", oldregs.rip);
+       printf("RIP at the begining: %llx\n", regs.rip);
 
        /*instruction pointer where we injected the code*/
        regs.rip = addr;
 
-       printf("RIP after: %llx\n", regs.rip);
+       printf("RIP with our code position :) %llx\n\n\n", regs.rip);
+       
 
        /*new regs with instruction pointer in addr*/
-       /*ptrace(PTRACE_SETREGS, traced_process,
-              NULL, &regs);*/
+       ptrace(PTRACE_SETREGS, traced_process,
+              NULL, &regs);
 
-       /*printf("ESPERAMOS 5 SEGuNDINES\n");
-       sleep(5);
-       printf("CONTINuAMOS LA WEA\n");*/
 
+       /*******************************************/
+       /************execute our shit***************/
+       /*******************************************/
        ptrace(PTRACE_CONT, traced_process,
               NULL, NULL);
        wait(NULL);
-
+       
        printf("The process stopped, Putting back "
-              "the original instructions\n");
+              "the original instructions\n");       
 
-       /*
-       getdata(traced_process, addr, pruebesita, len);
-       printf("DATA ANTES DE RESTAURAR:\n");
-       printf("%x\n", pruebesita);
-       */
-
-       /*Restore original information*/
-       /*putdata(traced_process, addr, backup, len);*/
-       /*
-       getdata(traced_process, addr, pruebesita, len);
-       printf("DATA DESPUES DE RESTAURAR:\n");
-       printf("%x\n", pruebesita);
-       */
-
-       /*ptrace(PTRACE_SETREGS, traced_process,
-              NULL, &oldregs);*/
+       /*******************************************/
+       /*********Restore original registers********/
+       /*******************************************/
+       ptrace(PTRACE_SETREGS, traced_process,
+              NULL, &oldregs);
        printf("Letting it continue with "
               "original flow\n");
 
-       /*Detach and end it*/
+       /*******************************************/
+       /*************Detach and end it*************/
+       /*******************************************/
        ptrace(PTRACE_DETACH, traced_process,
               NULL, NULL);
        return 0;
