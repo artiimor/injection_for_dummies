@@ -62,17 +62,22 @@ int main(int argc, char *argv[])
        getdata(traced_process, addr, backup, len);
        
        printf("DATA BEFORE INSERT (ONLY FIRST WORD):\n");
-       printf("%x\n", ptrace(PTRACE_PEEKDATA, traced_process,
+       printf("%lx\n", ptrace(PTRACE_PEEKDATA, traced_process,
                           addr, NULL));
 
 
        /*******************************************/
        /*************Inject evil stuff*************/
        /*******************************************/
+
+       printf("CHECK IF I AM A SO: %d\n",mommy_am_i_inside_a_SO(traced_process));
+
+       return 1;
+
        ptrace_writemem(traced_process, addr, insertcode, len);
 
        printf("DATA AFTER INSERTION (ONLY FIRST WORD):\n");
-       printf("%x\n", ptrace(PTRACE_PEEKDATA, traced_process,
+       printf("%lx\n", ptrace(PTRACE_PEEKDATA, traced_process,
                           addr, NULL));
 
 

@@ -142,22 +142,147 @@ int ptrace_writemem(pid_t pid, void *addr, void *src, size_t n)
 
 int ptrace_readmem(pid_t pid, void *addr, void *buf, size_t n)
 {
-	size_t i;
-	uint32_t word;
-	int wordsize = sizeof(word);
-	uint64_t curaddr = (uint64_t)addr;
-	uint8_t *bufptr = buf;
+    size_t i;
+    uint32_t word;
+    int wordsize = sizeof(word);
+    uint64_t curaddr = (uint64_t)addr;
+    uint8_t *bufptr = buf;
 
-	for (i = 0; i + wordsize <= n; i += wordsize, curaddr += wordsize) {
-		word = read_word(pid, (void *)curaddr);
-		memcpy(bufptr + i, &word, wordsize);
-	}
+    for (i = 0; i + wordsize <= n; i += wordsize, curaddr += wordsize)
+    {
+        word = read_word(pid, (void *)curaddr);
+        memcpy(bufptr + i, &word, wordsize);
+    }
 
-	if (i < n) {
-		word = read_word(pid, (void *)curaddr);
-		memcpy(bufptr + i, &word, n - i);
-	}
+    if (i < n)
+    {
+        word = read_word(pid, (void *)curaddr);
+        memcpy(bufptr + i, &word, n - i);
+    }
 
-	return (int)n;
+    return (int)n;
 }
 
+
+/*********************************************************/
+/*********************Some memory stuff*******************/
+/*Copied from narhem, we did a good work, check his stuff*/
+/************https://github.com/narhen/procjack***********/
+/*********************************************************/
+
+void mem_maps_free(struct mem_map_entry *ent)
+{
+    uint32_t *num, i;
+    num = ((uint32_t *)ent) - 1;
+
+    for (i = 0; i < *num; i++)
+        free(ent[i].pathname);
+    free(num);
+}
+
+static void parse_maps_ent(char *str, struct mem_map_entry *ent)
+{
+    int i;
+    uint64_t start, end;
+    char *str2, *token, *saveptr, *tmp;
+
+    for (i = 0, str2 = str;; str2 = NULL, ++i)
+    {
+        token = strtok_r(str2, " ", &saveptr);
+        if (!token)
+            break;
+
+        switch (i)
+        {
+        case 0:
+            tmp = strchr(token, '-');
+            *tmp++ = 0;
+
+            start = strtoul(token, NULL, 16);
+            end = strtoul(tmp, NULL, 16);
+            *--tmp = '-';
+
+            ent->addr = (void *)start;
+            ent->size = end - start;
+            break;
+        case 1:
+            if (token[0] == 'r')
+                ent->perms |= MEM_PERM_READ;
+            if (token[1] == 'w')
+                ent->perms |= MEM_PERM_WRITE;
+            if (token[2] == 'x')
+                ent->perms |= MEM_PERM_EXEC;
+            break;
+        case 5:
+            ent->pathname = strdup(token);
+            break;
+        }
+    }
+}
+
+struct mem_map_entry *get_process_memory(pid_t pid)
+{
+    char buf[1024];
+    uint32_t *num;
+    int num_ents = 20, i;
+    struct mem_map_entry *ret, *current;
+    FILE *fp;
+
+    sprintf(buf, "/proc/%d/maps", pid);
+    fp = fopen(buf, "r");
+    if (!fp)
+        return NULL;
+
+    num = calloc(1, sizeof(struct mem_map_entry) * num_ents + sizeof(uint32_t));
+    ret = current = (struct mem_map_entry *)((uint32_t *)num + 1);
+
+    for (i = 0; fgets(buf, sizeof(buf), fp); ++i, ++current)
+    {
+        if (i >= num_ents)
+        {
+            num_ents += 10;
+            num = realloc(num, num_ents * sizeof(struct mem_map_entry) + sizeof(uint32_t));
+            ret = (struct mem_map_entry *)((uint32_t *)num + 1);
+            current = ret + i;
+        }
+
+        if (strchr(buf, '\n'))
+            *strchr(buf, '\n') = 0;
+        parse_maps_ent(buf, current);
+    }
+
+    *num = i;
+    return ret;
+}
+
+int mommy_am_i_inside_a_SO(pid_t pid)
+{
+    int well_am_i = 0;
+    struct mem_map_entry *mem_map, *ptr;
+    struct user_regs_struct regs;
+
+    mem_map = get_process_memory(pid);
+
+    if (ptrace(PTRACE_GETREGS, pid,
+               NULL, &regs) == -1)
+    {
+        printf("[ERROR] something went wrong trying to get the registers\n");
+        return -1;
+    }
+
+    mem_map_foreach(mem_map, ptr)
+    {
+        uint64_t page_addr = (uint64_t)ptr->addr;
+        if (regs.rip < page_addr || regs.rip >= page_addr + ptr->size)
+            continue;
+
+        if (ptr->pathname != NULL)
+        {
+            well_am_i = !strncmp(ptr->pathname, "/lib", 4) || !strncmp(ptr->pathname, "/usr/lib", 8);
+        }
+        break;
+    }
+
+    mem_maps_free(mem_map);
+    return well_am_i;
+}
