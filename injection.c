@@ -15,6 +15,7 @@ int main(int argc, char *argv[])
        pid_t traced_process;
        struct user_regs_struct oldregs, regs;
        long ins;
+       int check_SO;
 
        char insertcode[] = "\xB8\x10\x00\x00\x00\xc3";
        char aux[] = "asd";
@@ -22,7 +23,6 @@ int main(int argc, char *argv[])
        char backup[len];
        char pruebesita[len];
        long addr;
-
 
        if (argc != 2)
        {
@@ -59,27 +59,39 @@ int main(int argc, char *argv[])
        /*******************************************/
        /***************Little backup***************/
        /*******************************************/
-       getdata(traced_process, addr, backup, len);
-       
-       printf("DATA BEFORE INSERT (ONLY FIRST WORD):\n");
-       printf("%lx\n", ptrace(PTRACE_PEEKDATA, traced_process,
-                          addr, NULL));
+       ptrace_readmem(traced_process, addr, backup, len);
 
+       printf("DATA BEFORE INSERT (ONLY FIRST WORD): ");
+       printf("%lx\n", ptrace(PTRACE_PEEKDATA, traced_process,
+                              addr, NULL));
+
+       printf("RIP at the begining: %llx\n\n", regs.rip);
+
+       /*******************************************/
+       /*************Some comprobations************/
+       /*******************************************/
+
+       printf("Checking if i am inside a SO\n");
+
+       check_SO = mommy_am_i_inside_a_SO(traced_process);
+
+       if (check_SO == 1)
+       {
+              printf("Yes, i am certainly a SO. I'm sotty :(");
+              return -1;
+       }
+
+       printf("So, i am not in a SO boi\n\n");
 
        /*******************************************/
        /*************Inject evil stuff*************/
        /*******************************************/
 
-       printf("CHECK IF I AM A SO: %d\n",mommy_am_i_inside_a_SO(traced_process));
-
-       return 1;
-
        ptrace_writemem(traced_process, addr, insertcode, len);
 
        printf("DATA AFTER INSERTION (ONLY FIRST WORD):\n");
        printf("%lx\n", ptrace(PTRACE_PEEKDATA, traced_process,
-                          addr, NULL));
-
+                              addr, NULL));
 
        /*******************************************/
        /***********another little backup***********/
@@ -87,19 +99,16 @@ int main(int argc, char *argv[])
        memcpy(&oldregs, &regs, sizeof(regs));
 
        /*look the instruction pointer*/
-       printf("RIP in oldregs: %llx\n", oldregs.rip);
-       printf("RIP at the begining: %llx\n", regs.rip);
+       printf("backup RIP: %llx\n", oldregs.rip);
 
        /*instruction pointer where we injected the code*/
        regs.rip = addr;
 
        printf("RIP with our code position :) %llx\n\n\n", regs.rip);
-       
 
        /*new regs with instruction pointer in addr*/
        ptrace(PTRACE_SETREGS, traced_process,
               NULL, &regs);
-
 
        /*******************************************/
        /************execute our shit***************/
@@ -107,22 +116,46 @@ int main(int argc, char *argv[])
        ptrace(PTRACE_CONT, traced_process,
               NULL, NULL);
        wait(NULL);
-       
+
        printf("The process stopped, Putting back "
-              "the original instructions\n");       
+              "the original instructions\n");
+
+       /*******************************************/
+       /*****Restore the original instructions*****/
+       /*******************************************/
+       ptrace_writemem(traced_process, addr, backup, len);
+
+       printf("DATA AFTER RESTORING (ONLY FIRST WORD):\n");
+       printf("%lx\n", ptrace(PTRACE_PEEKDATA, traced_process,
+                              addr, NULL));
 
        /*******************************************/
        /*********Restore original registers********/
        /*******************************************/
        ptrace(PTRACE_SETREGS, traced_process,
               NULL, &oldregs);
-       printf("Letting it continue with "
-              "original flow\n");
+
+       /*******************************************/
+       /************Just for comprobation**********/
+       /*******************************************/
+
+       if (ptrace(PTRACE_GETREGS, traced_process,
+                  NULL, &regs) == -1)
+       {
+              printf("[ERROR] something went wrong trying to get the registers\n");
+              return -1;
+       }
+
+       printf("RIP restored: %llx\n", regs.rip);
 
        /*******************************************/
        /*************Detach and end it*************/
        /*******************************************/
        ptrace(PTRACE_DETACH, traced_process,
               NULL, NULL);
+
+       printf("\n\nLetting it continue with "
+              "original flow\n");
+
        return 0;
 }

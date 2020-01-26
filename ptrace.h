@@ -17,16 +17,16 @@
  */
 struct mem_map_entry
 {
-    void *addr;
-    size_t size;
-    uint8_t perms;
-    char *pathname;
+  void *addr;
+  size_t size;
+  uint8_t perms;
+  char *pathname;
 };
 
 /* For iterate a mem_map_entry, because we don't use a normal array,
   you can notice just by seeing get_process_memory function :) */
 #define mem_map_foreach(ents, ptr) \
-    for ((ptr) = (ents); (ptr) < (ents) + mem_map_length(ents); ++(ptr))
+  for ((ptr) = (ents); (ptr) < (ents) + mem_map_length(ents); ++(ptr))
 
 /* Lenght of a mem_map_entry, for out special loop */
 #define mem_map_length(ents) *(((uint32_t *)ents) - 1)
@@ -35,12 +35,6 @@ struct mem_map_entry
 #define MEM_PERM_READ (1 << 2)
 #define MEM_PERM_WRITE (1 << 1)
 #define MEM_PERM_EXEC (1 << 0)
-
-void getdata(pid_t child, long addr,
-             char *str, int len);
-
-void putdata(pid_t child, long addr,
-             char *str, int len);
 
 /**
  * gives you a free space address of a process, ideal for injecting and not change the process
@@ -75,7 +69,6 @@ int ptrace_writemem(pid_t pid, void *addr, void *src, size_t n);
  */
 
 int ptrace_readmem(pid_t pid, void *addr, void *buf, size_t n);
-
 
 /*Copied from narhem, he did a good work, check his stuff*/
 /************https://github.com/narhen/procjack***********/
