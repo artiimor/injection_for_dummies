@@ -81,4 +81,6 @@ int ptrace_readmem(pid_t pid, void *addr, void *buf, size_t n);
  */
 int mommy_am_i_inside_a_SO(pid_t pid);
 
+void print_memory_map(pid_t pid);
+
 #endif

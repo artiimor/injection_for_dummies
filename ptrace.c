@@ -299,3 +299,22 @@ int mommy_am_i_inside_a_SO(pid_t pid)
     mem_maps_free(mem_map);
     return well_am_i;
 }
+
+void print_memory_map(pid_t pid)
+{
+    struct mem_map_entry *ent, *ptr;
+    ent = get_process_memory(pid);
+    mem_map_foreach(ent, ptr) {
+        printf("%-18p %07lx %c%c%c %s\n",
+                ptr->addr,
+                ptr->size,
+                ptr->perms & MEM_PERM_READ ? 'r' : '-',
+                ptr->perms & MEM_PERM_WRITE ? 'w' : '-',
+                ptr->perms & MEM_PERM_EXEC ? 'x' : '-',
+                ptr->pathname);
+    }
+    printf("%d entries\n", mem_map_length(ent));
+
+    mem_maps_free(ent);
+}
+
